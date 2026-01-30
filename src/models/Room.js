@@ -10,12 +10,10 @@ const Room = sequelize.define('Room', {
         primaryKey: true
     },
     content: {
-        type: DataTypes.TEXT('long'), 
-        defaultValue: ""
+        type: DataTypes.TEXT('long') 
+        // ❌ JANGAN ADA 'defaultValue' DI SINI
     }
-    // HAPUS bagian userId.
-    // Sequelize akan otomatis menambahkannya karena kita sudah tulis 
-    // "Room.belongsTo(User)" di file index.js
+    // userId tidak perlu ditulis, otomatis dibuat oleh index.js
 });
 
 module.exports = Room;
