@@ -15,27 +15,15 @@ const socketHandler = require('./socket/socketHandler');
 const app = express();
 const server = http.createServer(app); // Server HTTP untuk Express + Socket.io
 
-const PORT = process.env.PORT || 5000; // Definisi PORT dipindah ke atas
+const PORT = process.env.PORT || 5000; 
 
-// --- KONFIGURASI CORS ---
-// PENTING: Nanti tambahkan URL Frontend Railway/Vercel Anda di sini
-const allowedOrigins = [
-    "http://localhost:5173", 
-    "http://127.0.0.1:5173",
-    // Contoh: "https://nama-frontend-anda.vercel.app"
-];
-
+// --- KONFIGURASI CORS (DIPERBAIKI) ---
+// Kita buka akses selebar-lebarnya dulu (origin: '*') 
+// supaya Frontend di Railway PASTI bisa masuk.
 app.use(cors({
-    origin: function (origin, callback) {
-        // Izinkan request tanpa origin (seperti Postman) atau jika origin ada di list
-        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            console.log("Blocked by CORS:", origin); // Debugging
-            callback(null, true); // SEMENTARA: Izinkan semua agar tidak error saat tes awal
-        }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: '*', 
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // WAJIB ADA 'OPTIONS' UNTUK PREFLIGHT!
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true 
 }));
 
@@ -47,7 +35,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Setup Socket.io
 const io = new Server(server, {
     cors: {
-        origin: "*", // SEMENTARA: Izinkan semua origin untuk Socket agar koneksi tidak ditolak
+        origin: "*", // Izinkan koneksi socket dari mana saja
         methods: ["GET", "POST"],
         credentials: true
     }
@@ -66,14 +54,13 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Terjadi kesalahan pada server!' });
 });
 
-// --- BAGIAN INI YANG DIPERBAIKI ---
-// Hapus app.listen() yang lama. Hanya gunakan server.listen() di dalam sequelize.sync()
-
+// --- MENJALANKAN SERVER ---
+// Menggunakan alter: true agar tabel otomatis update jika ada perubahan kolom
 sequelize.sync({ alter: true }) 
     .then(() => {
         console.log("✅ Database MySQL Connected & Synced");
         
-        // GUNAKAN 'server.listen', JANGAN 'app.listen' karena ada Socket.io
+        // Gunakan 0.0.0.0 agar bisa diakses dari jaringan luar (PENTING UNTUK RAILWAY)
         server.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${PORT}`);
             console.log(`📡 Socket.io ready`);
