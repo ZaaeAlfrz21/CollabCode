@@ -3,7 +3,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
-const path = require('path'); // <--- 1. TAMBAHKAN INI (Untuk path folder)
+const path = require('path'); 
 
 // Import sequelize
 const { sequelize } = require('./models'); 
@@ -13,32 +13,41 @@ const authRoutes = require('./routes/authRoutes');
 const socketHandler = require('./socket/socketHandler');
 
 const app = express();
-const server = http.createServer(app);
+const server = http.createServer(app); // Server HTTP untuk Express + Socket.io
 
-// --- KONFIGURASI VARIASI ORIGIN ---
+const PORT = process.env.PORT || 5000; // Definisi PORT dipindah ke atas
+
+// --- KONFIGURASI CORS ---
+// PENTING: Nanti tambahkan URL Frontend Railway/Vercel Anda di sini
 const allowedOrigins = [
     "http://localhost:5173", 
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173",
+    // Contoh: "https://nama-frontend-anda.vercel.app"
 ];
 
-// 1. Setup Middleware CORS
 app.use(cors({
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+        // Izinkan request tanpa origin (seperti Postman) atau jika origin ada di list
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            console.log("Blocked by CORS:", origin); // Debugging
+            callback(null, true); // SEMENTARA: Izinkan semua agar tidak error saat tes awal
+        }
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true 
 }));
 
 app.use(express.json());
 
-// --- 2. PENTING: AKSES FOLDER GAMBAR SECARA STATIS ---
-// Ini membuat file di dalam folder 'uploads' bisa dibuka lewat URL:
-// Contoh: http://localhost:5000/uploads/foto-profil.jpg
+// Akses folder uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); 
 
-// 3. Setup Socket.io
+// Setup Socket.io
 const io = new Server(server, {
     cors: {
-        origin: allowedOrigins, 
+        origin: "*", // SEMENTARA: Izinkan semua origin untuk Socket agar koneksi tidak ditolak
         methods: ["GET", "POST"],
         credentials: true
     }
@@ -57,22 +66,17 @@ app.use((err, req, res, next) => {
     res.status(500).json({ message: 'Terjadi kesalahan pada server!' });
 });
 
-// Sinkronisasi Database & Start Server
-const PORT = process.env.PORT || 5000;
+// --- BAGIAN INI YANG DIPERBAIKI ---
+// Hapus app.listen() yang lama. Hanya gunakan server.listen() di dalam sequelize.sync()
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
-
-// --- 3. PENTING: GUNAKAN ALTER: TRUE ---
-// Ganti 'force: false' jadi 'alter: true' agar kolom 'profilePicture' ditambahkan ke tabel Users yang sudah ada.
 sequelize.sync({ alter: true }) 
     .then(() => {
-        console.log("✅ Database MySQL Connected & Synced (Schema Updated)");
-        server.listen(PORT, () => {
+        console.log("✅ Database MySQL Connected & Synced");
+        
+        // GUNAKAN 'server.listen', JANGAN 'app.listen' karena ada Socket.io
+        server.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 Server running on port ${PORT}`);
-            console.log(`📡 Socket.io ready for connections`);
-            console.log(`📂 Static folder '/uploads' is now public`);
+            console.log(`📡 Socket.io ready`);
         });
     })
     .catch((err) => {
